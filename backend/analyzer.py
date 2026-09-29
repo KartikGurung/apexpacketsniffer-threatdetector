@@ -112,11 +112,11 @@ class PacketAnalyzer:
             info = f"{ip.src} -> {ip.dst}"
             layers["IPv4"] = {
                 "Version": ip.version,
-                "Header Length": ip.ihl * 4,
+                "Header Length": (ip.ihl * 4) if ip.ihl is not None else 20,
                 "TTL": ip.ttl,
                 "Protocol": ip.proto,
-                "Total Length": ip.len,
-                "Checksum": hex(ip.chksum)
+                "Total Length": ip.len if ip.len is not None else len(packet),
+                "Checksum": hex(ip.chksum) if ip.chksum is not None else "0x0"
             }
         elif IPv6 in packet:
             ipv6 = packet[IPv6]
@@ -172,7 +172,7 @@ class PacketAnalyzer:
                 "Data Offset": tcp.dataofs,
                 "Flags": str(tcp.flags),
                 "Window Size": tcp.window,
-                "Checksum": hex(tcp.chksum)
+                "Checksum": hex(tcp.chksum) if tcp.chksum is not None else "0x0"
             }
             self.protocol_counts["TCP"] += 1
             
@@ -189,7 +189,7 @@ class PacketAnalyzer:
                 "Source Port": udp.sport,
                 "Destination Port": udp.dport,
                 "Length": udp.len,
-                "Checksum": hex(udp.chksum)
+                "Checksum": hex(udp.chksum) if udp.chksum is not None else "0x0"
             }
             self.protocol_counts["UDP"] += 1
             

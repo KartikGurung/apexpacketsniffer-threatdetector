@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  sniffer-backend:
+    build: .
+    container_name: apex_packet_sniffer
+    ports:
+      - "8000:8000"
+    network_mode: "host" # Allows sniffing host network traffic in Docker Linux environments
+    restart: unless-stopped

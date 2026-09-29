@@ -273,10 +273,27 @@ document.addEventListener("DOMContentLoaded", () => {
     // UI RENDERING FUNCTIONS
     // ==========================================
 
+    // API Base URL configuration for decoupled deployment (e.g., Vercel frontend + Remote backend)
+    function getApiBaseUrl() {
+        if (window.API_BASE_URL) return window.API_BASE_URL.replace(/\/$/, "");
+        return ""; // Relative path when served by same FastAPI backend
+    }
+
+    function getWsUrl() {
+        if (window.WS_BASE_URL) return window.WS_BASE_URL;
+        if (window.API_BASE_URL) {
+            const apiHost = window.API_BASE_URL.replace(/^https?:\/\//, "").replace(/\/$/, "");
+            const wsProtocol = window.API_BASE_URL.startsWith("https") ? "wss:" : "ws:";
+            return `${wsProtocol}//${apiHost}/ws`;
+        }
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        return `${protocol}//${window.location.host}/ws`;
+    }
+
     // Fetch and populate network interfaces list
     async function fetchInterfaces() {
         try {
-            const res = await fetch("/api/interfaces");
+            const res = await fetch(`${getApiBaseUrl()}/api/interfaces`);
             if (!res.ok) throw new Error("API error fetching interfaces.");
             interfaces = await res.ok ? await res.json() : [];
             
@@ -498,8 +515,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // ==========================================
 
     function connectWebSocket() {
-        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-        const wsUrl = `${protocol}//${window.location.host}/ws`;
+        const wsUrl = getWsUrl();
         
         console.log(`Connecting to WebSocket: ${wsUrl}`);
         ws = new WebSocket(wsUrl);
@@ -576,7 +592,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const filterStr = filterInput.value;
         
         try {
-            const res = await fetch("/api/start", {
+            const res = await fetch(`${getApiBaseUrl()}/api/start`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -612,7 +628,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function stopCapture() {
         try {
-            const res = await fetch("/api/stop", { method: "POST" });
+            const res = await fetch(`${getApiBaseUrl()}/api/stop`, { method: "POST" });
             if (res.ok) {
                 isCapturing = false;
                 startBtn.disabled = false;
@@ -629,7 +645,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function clearLogs() {
         try {
-            const res = await fetch("/api/clear", { method: "POST" });
+            const res = await fetch(`${getApiBaseUrl()}/api/clear`, { method: "POST" });
             if (res.ok) {
                 // Flush memory structures
                 packetHistory = [];
@@ -671,7 +687,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function downloadPcap() {
         // Redirect browser to PCAP API endpoint to trigger attachment download
-        window.location.href = "/api/download-pcap";
+        window.location.href = `${getApiBaseUrl()}/api/download-pcap`;
     }
 
     // ==========================================
