@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "name": "apex-packet-sniffer",
   "builds": [
     {
       "src": "frontend/**",
