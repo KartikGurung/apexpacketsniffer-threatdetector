@@ -8,7 +8,9 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
+    env:
+      IMAGE: ${{ secrets.REGISTRY_URL }}/${{ secrets.REGISTRY_USERNAME }}/${{ secrets.DOCKER_IMAGE_NAME }}:latest
     steps:
       - uses: actions/checkout@v3
 
@@ -39,10 +41,7 @@ jobs:
         run: echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ secrets.REGISTRY_URL }} -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin
 
       - name: Tag image
-        run: |
-          IMAGE="${{ secrets.REGISTRY_URL }}/${{ secrets.REGISTRY_USERNAME }}/${{ secrets.DOCKER_IMAGE_NAME }}:latest"
-          docker tag apex-packet-sniffer $IMAGE
-          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+        run: docker tag apex-packet-sniffer ${{ env.IMAGE }}
 
       - name: Push image
         run: docker push ${{ env.IMAGE }}
