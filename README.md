@@ -125,9 +125,3 @@ The integrated threat detection engine analyzes packets in real-time to identify
 This project is licensed under the MIT License. See the `LICENSE` file for details.
 
 *Note: This tool is developed for educational and research purposes. Always obtain authorization before capturing network traffic on networks you do not own or manage.*
- 
- 
- 
- 
-# ci update 
-# CI test
