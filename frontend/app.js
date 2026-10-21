@@ -49,6 +49,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const MAX_PACKETS = 1000;
     let selectedPacketId = null;
     let searchQuery = "";
+
+    // Operator Authentication
+    let operatorToken = null;
+    function operatorHeaders() {
+        if (!operatorToken) {
+            operatorToken = window.prompt("Operator API token:") || "";
+        }
+        return { "Authorization": `Bearer ${operatorToken}` };
+    }
     
     // Throughput Chart Data History (20 data points)
     let throughputHistory = Array(20).fill(0);
@@ -343,13 +352,27 @@ document.addEventListener("DOMContentLoaded", () => {
                     fieldVal.forEach((q, idx) => {
                         const row = document.createElement("div");
                         row.className = "field-row";
-                        row.innerHTML = `<span class="field-name">Query #${idx+1}</span><span class="field-val">${q}</span>`;
+                        const nameSpan = document.createElement("span");
+                        nameSpan.className = "field-name";
+                        nameSpan.textContent = `Query #${idx+1}`;
+                        const valSpan = document.createElement("span");
+                        valSpan.className = "field-val";
+                        valSpan.textContent = q;
+                        row.appendChild(nameSpan);
+                        row.appendChild(valSpan);
                         fieldsContainer.appendChild(row);
                     });
                 } else {
                     const row = document.createElement("div");
                     row.className = "field-row";
-                    row.innerHTML = `<span class="field-name">${fieldName}</span><span class="field-val">${fieldVal}</span>`;
+                    const nameSpan = document.createElement("span");
+                    nameSpan.className = "field-name";
+                    nameSpan.textContent = fieldName;
+                    const valSpan = document.createElement("span");
+                    valSpan.className = "field-val";
+                    valSpan.textContent = String(fieldVal);
+                    row.appendChild(nameSpan);
+                    row.appendChild(valSpan);
                     fieldsContainer.appendChild(row);
                 }
             }
@@ -412,15 +435,43 @@ document.addEventListener("DOMContentLoaded", () => {
         const date = new Date(pkt.timestamp * 1000);
         const timeStr = date.toTimeString().split(" ")[0] + "." + String(date.getMilliseconds()).padStart(3, '0');
         
-        tr.innerHTML = `
-            <td>${pkt.id}</td>
-            <td style="color: var(--text-secondary)">${timeStr}</td>
-            <td class="text-truncate" title="${pkt.source}">${pkt.source}</td>
-            <td class="text-truncate" title="${pkt.destination}">${pkt.destination}</td>
-            <td><span class="proto-tag ${getProtocolTagClass(pkt.protocol)}">${pkt.protocol}</span></td>
-            <td>${pkt.length}</td>
-            <td class="text-truncate" title="${pkt.info}">${pkt.info}</td>
-        `;
+        const tdId = document.createElement("td");
+        tdId.textContent = pkt.id;
+        tr.appendChild(tdId);
+
+        const tdTime = document.createElement("td");
+        tdTime.style.color = "var(--text-secondary)";
+        tdTime.textContent = timeStr;
+        tr.appendChild(tdTime);
+
+        const tdSrc = document.createElement("td");
+        tdSrc.className = "text-truncate";
+        tdSrc.title = pkt.source;
+        tdSrc.textContent = pkt.source;
+        tr.appendChild(tdSrc);
+
+        const tdDst = document.createElement("td");
+        tdDst.className = "text-truncate";
+        tdDst.title = pkt.destination;
+        tdDst.textContent = pkt.destination;
+        tr.appendChild(tdDst);
+
+        const tdProto = document.createElement("td");
+        const protoSpan = document.createElement("span");
+        protoSpan.className = `proto-tag ${getProtocolTagClass(pkt.protocol)}`;
+        protoSpan.textContent = pkt.protocol;
+        tdProto.appendChild(protoSpan);
+        tr.appendChild(tdProto);
+
+        const tdLen = document.createElement("td");
+        tdLen.textContent = pkt.length;
+        tr.appendChild(tdLen);
+
+        const tdInfo = document.createElement("td");
+        tdInfo.className = "text-truncate";
+        tdInfo.title = pkt.info;
+        tdInfo.textContent = pkt.info;
+        tr.appendChild(tdInfo);
         
         // Highlight if this is the currently selected packet in drawer
         if (selectedPacketId === pkt.id) {
@@ -490,18 +541,35 @@ document.addEventListener("DOMContentLoaded", () => {
             const timeDate = new Date(alert.timestamp * 1000);
             const timeStr = timeDate.toTimeString().split(" ")[0];
             
-            item.innerHTML = `
-                <div class="threat-item-icon">
-                    <i data-lucide="${severityIcon}"></i>
-                </div>
-                <div class="threat-details">
-                    <div class="threat-meta">
-                        <span class="threat-category">${alert.category}</span>
-                        <span class="threat-time">${timeStr}</span>
-                    </div>
-                    <span class="threat-msg">${alert.message}</span>
-                </div>
-            `;
+            const iconDiv = document.createElement("div");
+            iconDiv.className = "threat-item-icon";
+            const iconI = document.createElement("i");
+            iconI.setAttribute("data-lucide", severityIcon);
+            iconDiv.appendChild(iconI);
+
+            const detailsDiv = document.createElement("div");
+            detailsDiv.className = "threat-details";
+
+            const metaDiv = document.createElement("div");
+            metaDiv.className = "threat-meta";
+            const catSpan = document.createElement("span");
+            catSpan.className = "threat-category";
+            catSpan.textContent = alert.category;
+            const timeSpan = document.createElement("span");
+            timeSpan.className = "threat-time";
+            timeSpan.textContent = timeStr;
+            metaDiv.appendChild(catSpan);
+            metaDiv.appendChild(timeSpan);
+
+            const msgSpan = document.createElement("span");
+            msgSpan.className = "threat-msg";
+            msgSpan.textContent = alert.message;
+
+            detailsDiv.appendChild(metaDiv);
+            detailsDiv.appendChild(msgSpan);
+
+            item.appendChild(iconDiv);
+            item.appendChild(detailsDiv);
             
             threatList.appendChild(item);
         });
@@ -594,7 +662,10 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
             const res = await fetch(`${getApiBaseUrl()}/api/start`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    ...operatorHeaders()
+                },
                 body: JSON.stringify({
                     interface_id: interfaceId,
                     filter_str: filterStr
@@ -628,7 +699,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function stopCapture() {
         try {
-            const res = await fetch(`${getApiBaseUrl()}/api/stop`, { method: "POST" });
+            const res = await fetch(`${getApiBaseUrl()}/api/stop`, {
+                method: "POST",
+                headers: operatorHeaders()
+            });
             if (res.ok) {
                 isCapturing = false;
                 startBtn.disabled = false;
@@ -645,7 +719,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function clearLogs() {
         try {
-            const res = await fetch(`${getApiBaseUrl()}/api/clear`, { method: "POST" });
+            const res = await fetch(`${getApiBaseUrl()}/api/clear`, {
+                method: "POST",
+                headers: operatorHeaders()
+            });
             if (res.ok) {
                 // Flush memory structures
                 packetHistory = [];
@@ -685,9 +762,24 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    function downloadPcap() {
-        // Redirect browser to PCAP API endpoint to trigger attachment download
-        window.location.href = `${getApiBaseUrl()}/api/download-pcap`;
+    async function downloadPcap() {
+        try {
+            const res = await fetch(`${getApiBaseUrl()}/api/download-pcap`, {
+                headers: operatorHeaders()
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "apex_capture.pcap";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch (err) {
+            showToast(`PCAP download failed: ${err.message}`, "error");
+        }
     }
 
     // ==========================================

@@ -3,7 +3,7 @@ from pathlib import Path
 import yaml
 
 # Load optional YAML configuration file if present (project root)
-CONFIG_PATH = Path(__file__).parent.parent / "config.yaml"
+CONFIG_PATH = Path(__file__).resolve().parent / "config.yaml"
 _yaml_cfg = {}
 if CONFIG_PATH.is_file():
     try:
@@ -16,9 +16,11 @@ def _get(key: str, default=None):
     # Environment variables take precedence over yaml config
     return os.getenv(key, _yaml_cfg.get(key, default))
 
-# Settings with defaults
-API_TOKEN = _get("API_TOKEN", "dev-token")
-HOST = _get("HOST", "0.0.0.0")
+# Settings with defaults (no default token for security)
+API_TOKEN = os.environ.get("API_TOKEN")
+if not API_TOKEN:
+    raise RuntimeError("Set API_TOKEN before starting Apex.")
+HOST = _get("HOST", "127.0.0.1")
 PORT = int(_get("PORT", "8000"))
 PACKET_QUEUE_SIZE = int(_get("PACKET_QUEUE_SIZE", "2000"))
 

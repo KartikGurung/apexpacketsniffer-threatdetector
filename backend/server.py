@@ -2,11 +2,13 @@ import asyncio
 import os
 import queue
 import tempfile
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Header, Depends
+from pathlib import Path
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Header, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+
 
 from backend.sniffer import LiveSniffer, get_interfaces
 from backend.analyzer import PacketAnalyzer
@@ -31,9 +33,12 @@ from config import PACKET_QUEUE_SIZE, API_TOKEN
 
 # Authentication dependency
 def verify_token(Authorization: str = Header(None)):
+    if not Authorization:
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
     if Authorization != f"Bearer {API_TOKEN}":
         raise HTTPException(status_code=401, detail="Unauthorized")
     return True
+
 
 from logging_config import logger
 
@@ -205,7 +210,7 @@ def stop_capture(auth: bool = Depends(verify_token)):
 
 
 @app.post("/api/clear")
-def clear_capture():
+def clear_capture(auth: bool = Depends(verify_token)):
     """
     Clears all captured packet history, statistics, and threat logs.
     """
@@ -239,7 +244,10 @@ def download_pcap(auth: bool = Depends(verify_token)):
     )
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)):
+    if token is not None and token != API_TOKEN:
+        await websocket.close(code=1008)
+        return
     await manager.connect(websocket)
     # Send current stats & alerts immediately
     await websocket.send_json({"type": "stats", "data": analyzer.get_stats()})

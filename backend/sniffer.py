@@ -1,6 +1,6 @@
 import threading
 import os
-from scapy.all import sniff, wrpcap, conf, get_if_list
+from scapy.all import AsyncSniffer, sniff, wrpcap, conf, get_if_list
 
 def get_interfaces():
     """
@@ -80,59 +80,29 @@ def log_debug(msg):
 
 class LiveSniffer:
     """
-    Thread-safe packet sniffer utilizing Scapy's sniffing loop.
-    Runs in a background thread to prevent locking the web server.
+    Thread-safe packet sniffer utilizing Scapy's AsyncSniffer.
+    Runs asynchronously to prevent locking the web server and allows clean stopping
+    even during idle network traffic.
     """
     def __init__(self, packet_callback):
         self.packet_callback = packet_callback
-        self.thread = None
+        self.async_sniffer = None
         self.is_running = False
         self.interface = None
         self.filter_str = None
         self.captured_packets = []  # Keep a buffer of packet objects for PCAP export
-        self._stop_event = threading.Event()
         self._lock = threading.Lock()
 
-    def _sniffer_loop(self):
-        log_debug(f"Sniffer thread active. Target interface={self.interface}, BPF Filter={self.filter_str}")
-        try:
-            sniff_args = {
-                "prn": self._handle_packet,
-                "stop_filter": lambda x: self._stop_event.is_set(),
-                "store": False
-            }
-            if self.interface:
-                # Resolve GUID string/name to Scapy NetworkInterface object
-                scapy_iface = None
-                for iface_key, iface_obj in conf.ifaces.items():
-                    if (self.interface == iface_key or 
-                        self.interface == iface_obj.name or 
-                        self.interface == getattr(iface_obj, "guid", "") or
-                        self.interface == getattr(iface_obj, "network_name", "")):
-                        scapy_iface = iface_obj
-                        break
-                
-                if scapy_iface:
-                    log_debug(f"Resolved interface '{self.interface}' to Scapy NetworkInterface: {scapy_iface}")
-                    sniff_args["iface"] = scapy_iface
-                else:
-                    log_debug(f"Could not resolve '{self.interface}' in conf.ifaces. Using as raw string.")
-                    sniff_args["iface"] = self.interface
-                    
-            if self.filter_str and self.filter_str.strip():
-                sniff_args["filter"] = self.filter_str.strip()
-
-            sniff(**sniff_args)
-            log_debug("Sniffer sniff() loop completed successfully.")
-        except Exception as e:
-            log_debug(f"EXCEPTION in Scapy sniffing loop: {e}")
-            import traceback
-            log_debug(traceback.format_exc())
-            print(f"Error in Scapy sniffing loop: {e}")
-        finally:
-            with self._lock:
-                self.is_running = False
-            log_debug("Sniffer thread terminated.")
+    def _resolve_interface(self, iface_name):
+        if not iface_name:
+            return None
+        for iface_key, iface_obj in conf.ifaces.items():
+            if (iface_name == iface_key or 
+                iface_name == iface_obj.name or 
+                iface_name == getattr(iface_obj, "guid", "") or
+                iface_name == getattr(iface_obj, "network_name", "")):
+                return iface_obj
+        return iface_name
 
     def _handle_packet(self, packet):
         with self._lock:
@@ -155,27 +125,42 @@ class LiveSniffer:
             
             self.interface = interface
             self.filter_str = filter_str
-            self._stop_event.clear()
-            self.is_running = True
             
-            log_debug(f"Launching sniffer thread on interface: {interface}...")
-            self.thread = threading.Thread(target=self._sniffer_loop, daemon=True)
-            self.thread.start()
-            return True
+            sniff_args = {
+                "prn": self._handle_packet,
+                "store": False
+            }
+            if self.interface:
+                resolved = self._resolve_interface(self.interface)
+                log_debug(f"Resolved interface '{self.interface}' to: {resolved}")
+                sniff_args["iface"] = resolved
+            if self.filter_str and self.filter_str.strip():
+                sniff_args["filter"] = self.filter_str.strip()
+
+            try:
+                self.async_sniffer = AsyncSniffer(**sniff_args)
+                self.async_sniffer.start()
+                self.is_running = True
+                log_debug(f"AsyncSniffer started on interface: {interface}")
+                return True
+            except Exception as e:
+                log_debug(f"Failed to start AsyncSniffer: {e}")
+                self.is_running = False
+                self.async_sniffer = None
+                return False
 
     def stop(self):
         with self._lock:
-            if not self.is_running:
+            if not self.is_running or not self.async_sniffer:
                 return False
-            self._stop_event.set()
-        
-        # Wait for thread to finish
-        if self.thread:
-            self.thread.join(timeout=3.0)
-            
-        with self._lock:
+            try:
+                self.async_sniffer.stop()
+            except Exception as e:
+                log_debug(f"Exception stopping AsyncSniffer: {e}")
             self.is_running = False
-        return True
+            self.async_sniffer = None
+            log_debug("AsyncSniffer stopped successfully.")
+            return True
 
     def clear(self):
         with self._lock:

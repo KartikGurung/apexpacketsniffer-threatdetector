@@ -72,22 +72,61 @@ graph TD
 
 ---
 
+## Configuration & Security
+
+The server requires an explicit `API_TOKEN` environment variable to authenticate operator mutation endpoints (`/api/start`, `/api/stop`, `/api/clear`, `/api/download-pcap`). The server defaults to binding locally on `127.0.0.1:8000`.
+
+### Setting the Environment Variable
+**Windows PowerShell**:
+```powershell
+$env:API_TOKEN = python -c "import secrets; print(secrets.token_urlsafe(32))"
+$env:HOST = "127.0.0.1"
+$env:PORT = "8000"
+```
+
+**macOS / Linux**:
+```bash
+export API_TOKEN=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
+export HOST="127.0.0.1"
+export PORT="8000"
+```
+
+---
+
 ## Running the Application
 
 Because packet sniffing requires binding to low-level network adapter drivers, the application **must be run with Administrative / root privileges**.
 
 ### Windows (PowerShell / Command Prompt)
-1. Open PowerShell or CMD as **Administrator** (Right-click -> Run as Administrator).
-2. Run the main script:
+1. Open PowerShell as **Administrator** (Right-click -> Run as Administrator).
+2. Set your `API_TOKEN` environment variable as shown above.
+3. Run the desktop wrapper:
    ```powershell
    python main.py
    ```
+   Or run the headless web backend (ideal for browser and Cloudflare Tunnel demonstrations):
+   ```powershell
+   python -m uvicorn backend.server:app --host 127.0.0.1 --port 8000
+   ```
 
 ### macOS / Linux (Terminal)
-1. Open terminal and execute with `sudo`:
+1. Open terminal and execute with `sudo` preserving environment variables:
    ```bash
-   sudo python main.py
+   sudo -E python main.py
    ```
+
+### Operator Authentication
+When triggering operator actions (Start Capture, Stop Capture, Clear Logs, or PCAP Download) from the dashboard, you will be prompted for your `API_TOKEN`. It is kept in browser memory for the session and sent via `Authorization: Bearer <token>`. Safe DOM rendering protects against XSS from packet-derived strings.
+
+---
+
+## Remote Demonstration (Cloudflare Tunnel + Access)
+
+For remote demonstrations (e.g. examiners/supervisors):
+1. Keep the capture and FastAPI backend running locally on the student machine bound to `127.0.0.1:8000`.
+2. Run an outbound **Cloudflare Named Tunnel** (`cloudflared`) routing traffic from your registered hostname to `http://127.0.0.1:8000`.
+3. Protect the hostname with **Cloudflare Access** using an email allow-list for designated reviewers.
+4. Examiners can log in via Cloudflare Access to view live packet streaming and threat alerts over WebSockets, while operator mutations remain gated by the local `API_TOKEN`.
 
 ---
 
