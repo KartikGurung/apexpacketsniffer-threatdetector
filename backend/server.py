@@ -2,7 +2,7 @@ import asyncio
 import os
 import queue
 import tempfile
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -27,18 +27,23 @@ app.add_middleware(
 )
 
 import datetime
+from config import PACKET_QUEUE_SIZE, API_TOKEN
+
+# Authentication dependency
+def verify_token(Authorization: str = Header(None)):
+    if Authorization != f"Bearer {API_TOKEN}":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return True
+
+from logging_config import logger
 
 def log_debug(msg):
-    try:
-        log_path = os.path.join(BASE_DIR, "app.log")
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(f"{datetime.datetime.now().isoformat()} - SERVER: {msg}\n")
-    except Exception as e:
-        print(f"Logging failed: {e}")
+    # Deprecated: use logger directly
+    logger.info(msg)
 
 # Shared state
 analyzer = PacketAnalyzer()
-packet_queue = queue.Queue(maxsize=2000)
+packet_queue = queue.Queue(maxsize=PACKET_QUEUE_SIZE)
 
 def packet_captured_callback(packet):
     """
@@ -144,11 +149,14 @@ class StartRequest(BaseModel):
     interface_id: str | None = None
     filter_str: str | None = None
 
+@app.get("/healthz")
+def health_check():
+    """Health check endpoint used by load balancers and monitors."""
+    return {"status": "ok"}
+
 @app.get("/api/interfaces")
 def list_adapters():
-    """
-    Returns all active and inactive network interfaces on the host.
-    """
+    """Returns all active and inactive network interfaces on the host."""
     log_debug("GET /api/interfaces called")
     try:
         ifaces = get_interfaces()
@@ -161,10 +169,7 @@ def list_adapters():
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/start")
-def start_capture(req: StartRequest):
-    """
-    Starts sniffing on the chosen interface with the optional BPF filter.
-    """
+def start_capture(req: StartRequest, auth: bool = Depends(verify_token)):
     log_debug(f"POST /api/start called with interface_id={req.interface_id}, filter={req.filter_str}")
     try:
         # Empty queue and reset analyzer stats for a clean start
@@ -175,14 +180,13 @@ def start_capture(req: StartRequest):
                 packet_queue.task_done()
             except queue.Empty:
                 break
-                
         sniffer.clear()
         
         success = sniffer.start(interface=req.interface_id, filter_str=req.filter_str)
         log_debug(f"sniffer.start returned success={success}")
         if not success:
             raise HTTPException(status_code=400, detail="Sniffer is already running or failed to start.")
-            
+        
         return {"status": "started", "interface": req.interface_id, "filter": req.filter_str}
     except Exception as e:
         log_debug(f"EXCEPTION in start_capture endpoint: {e}")
@@ -190,15 +194,15 @@ def start_capture(req: StartRequest):
         log_debug(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.post("/api/stop")
-def stop_capture():
-    """
-    Stops the live sniffer.
-    """
+def stop_capture(auth: bool = Depends(verify_token)):
+    """Stops the live sniffer."""
     success = sniffer.stop()
     if not success:
         return {"status": "already stopped"}
     return {"status": "stopped"}
+
 
 @app.post("/api/clear")
 def clear_capture():
@@ -216,7 +220,7 @@ def clear_capture():
     return {"status": "cleared"}
 
 @app.get("/api/download-pcap")
-def download_pcap():
+def download_pcap(auth: bool = Depends(verify_token)):
     """
     Saves current memory buffer to a temporary file and returns it as a download.
     """
