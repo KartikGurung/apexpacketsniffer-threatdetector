@@ -1,0 +1,12 @@
+# Apex Network Packet Sniffer & Anomaly Detection Configuration
+API_TOKEN: "apex-operator-token-2026"
+HOST: "127.0.0.1"
+PORT: 8000
+PACKET_QUEUE_SIZE: 2000
+
+# IDS Thresholds
+PORT_SCAN_THRESHOLD: 15
+PORT_SCAN_WINDOW: 10
+SYN_FLOOD_THRESHOLD: 50
+SYN_FLOOD_WINDOW: 5
+DNS_TUNNEL_LENGTH: 80

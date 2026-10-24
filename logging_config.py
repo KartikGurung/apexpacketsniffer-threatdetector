@@ -1,5 +1,6 @@
 import logging
 import json
+import os
 from logging.handlers import RotatingFileHandler
 
 class JsonFormatter(logging.Formatter):
@@ -12,9 +13,11 @@ class JsonFormatter(logging.Formatter):
         }
         return json.dumps(record_dict)
 
-log_file = "app.log"
-handler = RotatingFileHandler(log_file, maxBytes=5 * 1024 * 1024, backupCount=5)
+log_dir = os.path.dirname(os.path.abspath(__file__))
+log_file = os.path.join(log_dir, "app.log")
+handler = RotatingFileHandler(log_file, maxBytes=5 * 1024 * 1024, backupCount=5, encoding="utf-8")
 handler.setFormatter(JsonFormatter())
 logger = logging.getLogger("apex")
 logger.setLevel(logging.INFO)
-logger.addHandler(handler)
+if not logger.handlers:
+    logger.addHandler(handler)

@@ -202,9 +202,15 @@ class PacketAnalyzer:
                 dns = packet[DNS]
                 proto = "DNS"
                 dns_queries = []
-                if dns.qd:
+                qd_field = getattr(dns, "qd", None)
+                if qd_field:
                     # Parse DNS query name
-                    qname = dns.qd.qname.decode(errors="ignore") if hasattr(dns.qd, "qname") else "unknown"
+                    try:
+                        qd = qd_field[0] if (hasattr(qd_field, "__getitem__") and len(qd_field) > 0) else qd_field
+                    except Exception:
+                        qd = qd_field
+                    qname_raw = getattr(qd, "qname", b"")
+                    qname = qname_raw.decode(errors="ignore") if hasattr(qname_raw, "decode") else str(qname_raw)
                     dns_queries.append(qname)
                     info = f"DNS Query: {qname}"
                 else:
@@ -237,7 +243,7 @@ class PacketAnalyzer:
             layers["ICMP"] = {
                 "Type": icmp.type,
                 "Code": icmp.code,
-                "Checksum": hex(icmp.chksum)
+                "Checksum": hex(icmp.chksum) if icmp.chksum is not None else "0x0"
             }
             self.protocol_counts["ICMP"] += 1
             

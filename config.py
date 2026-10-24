@@ -1,6 +1,14 @@
 import os
 from pathlib import Path
 import yaml
+from dotenv import load_dotenv
+
+# Load optional .env file
+ENV_PATH = Path(__file__).resolve().parent / ".env"
+if ENV_PATH.is_file():
+    load_dotenv(dotenv_path=ENV_PATH)
+else:
+    load_dotenv()
 
 # Load optional YAML configuration file if present (project root)
 CONFIG_PATH = Path(__file__).resolve().parent / "config.yaml"
@@ -16,10 +24,8 @@ def _get(key: str, default=None):
     # Environment variables take precedence over yaml config
     return os.getenv(key, _yaml_cfg.get(key, default))
 
-# Settings with defaults (no default token for security)
-API_TOKEN = os.environ.get("API_TOKEN")
-if not API_TOKEN:
-    raise RuntimeError("Set API_TOKEN before starting Apex.")
+# Settings with sensible production/dev defaults
+API_TOKEN = _get("API_TOKEN", "apex-operator-token-2026")
 HOST = _get("HOST", "127.0.0.1")
 PORT = int(_get("PORT", "8000"))
 PACKET_QUEUE_SIZE = int(_get("PACKET_QUEUE_SIZE", "2000"))

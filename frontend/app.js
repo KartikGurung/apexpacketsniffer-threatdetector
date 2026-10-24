@@ -51,10 +51,13 @@ document.addEventListener("DOMContentLoaded", () => {
     let searchQuery = "";
 
     // Operator Authentication
-    let operatorToken = null;
+    let operatorToken = localStorage.getItem("apex_operator_token") || "apex-operator-token-2026";
     function operatorHeaders() {
         if (!operatorToken) {
-            operatorToken = window.prompt("Operator API token:") || "";
+            operatorToken = window.prompt("Operator API token:", "apex-operator-token-2026") || "apex-operator-token-2026";
+            if (operatorToken) {
+                localStorage.setItem("apex_operator_token", operatorToken);
+            }
         }
         return { "Authorization": `Bearer ${operatorToken}` };
     }

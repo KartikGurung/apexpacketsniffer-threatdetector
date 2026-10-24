@@ -5,17 +5,11 @@ import time
 import uvicorn
 import webview
 from config import HOST, PORT
-import os
-import threading
-import time
-import uvicorn
-import webview
 
 def start_server():
     """
     Launches Uvicorn to serve the FastAPI application.
     """
-    from config import HOST, PORT
     config = uvicorn.Config(
         "backend.server:app",
         host=HOST,
@@ -28,14 +22,26 @@ def start_server():
 
 if __name__ == "__main__":
     # Windows admin check
+    is_admin = True
     if os.name == "nt":
         import ctypes
-        if not ctypes.windll.shell32.IsUserAnAdmin():
-            raise PermissionError("Administrator privileges required on Windows for packet capture.")
-    print("Starting backend web server...")
+        try:
+            is_admin = bool(ctypes.windll.shell32.IsUserAnAdmin())
+        except Exception:
+            is_admin = False
+
+        if not is_admin:
+            print("\n" + "=" * 72)
+            print("[NOTICE] Running without Administrator privileges.")
+            print("         Capturing live promiscuous packets with Npcap requires Admin rights.")
+            print("         For full packet capture, restart PowerShell/terminal as Administrator.")
+            print("=" * 72 + "\n")
+
+    print(f"Starting backend web server on http://{HOST}:{PORT}...")
     server_thread = threading.Thread(target=start_server, daemon=True)
     server_thread.start()
     time.sleep(1.5)
+
     print("Launching Desktop Application GUI...")
     webview.create_window(
         title="Apex Network Sniffer & Threat Detector",
