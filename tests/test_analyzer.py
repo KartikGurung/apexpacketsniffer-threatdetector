@@ -1,6 +1,10 @@
+import os
 import time
 import base64
 import pytest
+
+os.environ.setdefault("API_TOKEN", "test-operator-token-secret")
+
 from scapy.all import Ether, IP, IPv6, TCP, UDP, ICMP, ARP, DNS, DNSQR, Raw
 from backend.analyzer import PacketAnalyzer
 

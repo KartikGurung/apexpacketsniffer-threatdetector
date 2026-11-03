@@ -1,6 +1,13 @@
+import os
+import importlib
 import pytest
+
+# Ensure API_TOKEN is set in test environment before importing config/server
+os.environ.setdefault("API_TOKEN", "test-operator-token-secret")
+
 from fastapi.testclient import TestClient
 from backend.server import app, analyzer
+import config
 from config import API_TOKEN
 
 @pytest.fixture
@@ -61,3 +68,13 @@ def test_websocket_connection(client):
         alerts_msg = websocket.receive_json()
         assert alerts_msg["type"] == "alerts"
         assert isinstance(alerts_msg["data"], list)
+
+
+def test_missing_api_token_raises_runtime_error(monkeypatch):
+    monkeypatch.delenv("API_TOKEN", raising=False)
+    with pytest.raises(RuntimeError, match="Set API_TOKEN before starting Apex."):
+        importlib.reload(config)
+    # Restore config state for any subsequent tests
+    monkeypatch.setenv("API_TOKEN", API_TOKEN)
+    importlib.reload(config)
+

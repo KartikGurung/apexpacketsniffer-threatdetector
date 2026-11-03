@@ -1,5 +1,5 @@
 # Apex Network Packet Sniffer & Anomaly Detection Configuration
-API_TOKEN: "apex-operator-token-2026"
+# Note: API_TOKEN must be supplied via environment variable, never committed here.
 HOST: "127.0.0.1"
 PORT: 8000
 PACKET_QUEUE_SIZE: 2000
@@ -10,3 +10,4 @@ PORT_SCAN_WINDOW: 10
 SYN_FLOOD_THRESHOLD: 50
 SYN_FLOOD_WINDOW: 5
 DNS_TUNNEL_LENGTH: 80
+

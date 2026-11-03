@@ -50,14 +50,11 @@ document.addEventListener("DOMContentLoaded", () => {
     let selectedPacketId = null;
     let searchQuery = "";
 
-    // Operator Authentication
-    let operatorToken = localStorage.getItem("apex_operator_token") || "apex-operator-token-2026";
+    // Operator Authentication (transient in-memory token only; never hardcoded or persisted)
+    let operatorToken = null;
     function operatorHeaders() {
         if (!operatorToken) {
-            operatorToken = window.prompt("Operator API token:", "apex-operator-token-2026") || "apex-operator-token-2026";
-            if (operatorToken) {
-                localStorage.setItem("apex_operator_token", operatorToken);
-            }
+            operatorToken = window.prompt("Operator API token:") || "";
         }
         return { "Authorization": `Bearer ${operatorToken}` };
     }
@@ -235,7 +232,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    // Toast Notification System
+    // Toast Notification System (uses safe DOM creation + textContent)
     function showToast(message, type = "error") {
         const container = document.getElementById("toast-container") || createToastContainer();
         const toast = document.createElement("div");
@@ -255,7 +252,14 @@ document.addEventListener("DOMContentLoaded", () => {
         toast.style.transition = "all 0.3s ease";
         
         const iconName = type === "error" ? "alert-circle" : "check-circle";
-        toast.innerHTML = `<i data-lucide="${iconName}" style="width: 16px; height: 16px;"></i> <span>${message}</span>`;
+        const iconEl = document.createElement("i");
+        iconEl.setAttribute("data-lucide", iconName);
+        iconEl.style.width = "16px";
+        iconEl.style.height = "16px";
+        const msgSpan = document.createElement("span");
+        msgSpan.textContent = message;
+        toast.appendChild(iconEl);
+        toast.appendChild(msgSpan);
         
         container.appendChild(toast);
         lucide.createIcons();
@@ -675,6 +679,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 })
             });
             
+            if (res.status === 401) {
+                operatorToken = null;
+            }
             if (res.ok) {
                 isCapturing = true;
                 startBtn.disabled = true;
@@ -706,6 +713,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 method: "POST",
                 headers: operatorHeaders()
             });
+            if (res.status === 401) {
+                operatorToken = null;
+            }
             if (res.ok) {
                 isCapturing = false;
                 startBtn.disabled = false;
@@ -726,6 +736,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 method: "POST",
                 headers: operatorHeaders()
             });
+            if (res.status === 401) {
+                operatorToken = null;
+                showToast("Unauthorized: valid operator token required to clear logs.", "error");
+                return;
+            }
             if (res.ok) {
                 // Flush memory structures
                 packetHistory = [];
@@ -770,6 +785,9 @@ document.addEventListener("DOMContentLoaded", () => {
             const res = await fetch(`${getApiBaseUrl()}/api/download-pcap`, {
                 headers: operatorHeaders()
             });
+            if (res.status === 401) {
+                operatorToken = null;
+            }
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const blob = await res.blob();
             const url = URL.createObjectURL(blob);

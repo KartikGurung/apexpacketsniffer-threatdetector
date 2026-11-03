@@ -2,6 +2,13 @@ import time
 import base64
 from collections import defaultdict
 from scapy.all import IP, IPv6, TCP, UDP, ICMP, ARP, DNS, Raw, Ether
+from config import (
+    PORT_SCAN_THRESHOLD,
+    PORT_SCAN_WINDOW,
+    SYN_FLOOD_THRESHOLD,
+    SYN_FLOOD_WINDOW,
+    DNS_TUNNEL_LENGTH,
+)
 
 class PacketAnalyzer:
     """
@@ -280,7 +287,7 @@ class PacketAnalyzer:
             if payload_len > 1400:
                 self._add_alert("Warning", "Large Data Transfer", f"Source IP {src} transmitted a large payload size of {payload_len} bytes.")
 
-        # Final structured packet packet
+        # Final structured packet
         return {
             "id": pkt_id,
             "timestamp": round(now, 3),
@@ -317,43 +324,43 @@ class PacketAnalyzer:
 
     def _check_port_scan(self, src_ip, dst_port):
         """
-        Alerts if an IP requests more than 15 unique ports within a 10-second window.
+        Alerts if an IP requests more than PORT_SCAN_THRESHOLD unique ports within PORT_SCAN_WINDOW seconds.
         """
         now = time.time()
         
-        # If cache expired (older than 10 sec), reset
-        if now - self.port_scan_timestamps[src_ip] > 10.0:
+        # If cache expired (older than window), reset
+        if now - self.port_scan_timestamps[src_ip] > float(PORT_SCAN_WINDOW):
             self.port_scan_cache[src_ip] = set()
             self.port_scan_timestamps[src_ip] = now
             
         self.port_scan_cache[src_ip].add(dst_port)
         
-        if len(self.port_scan_cache[src_ip]) > 15:
+        if len(self.port_scan_cache[src_ip]) > PORT_SCAN_THRESHOLD:
             self._add_alert(
                 "High",
                 "Port Scanning Detected",
-                f"Source IP {src_ip} attempted connections to {len(self.port_scan_cache[src_ip])} unique ports within 10s."
+                f"Source IP {src_ip} attempted connections to {len(self.port_scan_cache[src_ip])} unique ports within {PORT_SCAN_WINDOW}s."
             )
 
     def _check_syn_flood(self, src_ip, flags):
         """
-        Alerts if an IP sends more than 50 SYN packets without ACK within 5 seconds.
+        Alerts if an IP sends more than SYN_FLOOD_THRESHOLD SYN packets without ACK within SYN_FLOOD_WINDOW seconds.
         """
         if "S" in flags and "A" not in flags:  # SYN only
             now = time.time()
             
             # Reset if interval expired
-            if now - self.syn_flood_timestamps[src_ip] > 5.0:
+            if now - self.syn_flood_timestamps[src_ip] > float(SYN_FLOOD_WINDOW):
                 self.syn_flood_cache[src_ip] = 0
                 self.syn_flood_timestamps[src_ip] = now
                 
             self.syn_flood_cache[src_ip] += 1
             
-            if self.syn_flood_cache[src_ip] > 50:
+            if self.syn_flood_cache[src_ip] > SYN_FLOOD_THRESHOLD:
                 self._add_alert(
                     "Critical",
                     "SYN Flood Anomaly",
-                    f"Potential SYN flood attack from {src_ip}: {self.syn_flood_cache[src_ip]} SYN-only packets within 5s."
+                    f"Potential SYN flood attack from {src_ip}: {self.syn_flood_cache[src_ip]} SYN-only packets within {SYN_FLOOD_WINDOW}s."
                 )
 
     def _check_arp_spoofing(self, arp):
@@ -381,7 +388,7 @@ class PacketAnalyzer:
         or accesses suspicious extensions.
         """
         # DNS Tunneling check: unusually long domain name
-        if len(domain) > 80:
+        if len(domain) > DNS_TUNNEL_LENGTH:
             self._add_alert(
                 "Medium",
                 "Suspicious DNS Tunneling",

@@ -1,6 +1,12 @@
-# Logs
+# Logs & Captures
 app.log
 *.log
+*.pcap
+*.pcapng
+
+# Secrets & Environment
+.env
+.env.*
 
 # Python
 __pycache__/
@@ -15,3 +21,4 @@ ENV/
 .idea/
 .DS_Store
 Thumbs.db
+
